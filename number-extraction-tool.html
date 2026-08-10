@@ -1,0 +1,991 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>号码提取工具 4.2</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200&display=block" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+  <style>
+    :root {
+      --primary: oklch(54% 0.16 258);
+      --primary-container: oklch(92% 0.04 258);
+      --on-primary: oklch(99% 0.005 258);
+      --on-primary-container: oklch(25% 0.05 258);
+      --secondary: oklch(52% 0.14 200);
+      --tertiary: oklch(55% 0.13 155);
+      --error: oklch(54% 0.2 25);
+      --background: oklch(98.5% 0.003 258);
+      --surface: oklch(99% 0.003 258);
+      --surface-container-lowest: oklch(100% 0 0);
+      --surface-container-low: oklch(98% 0.004 258);
+      --surface-container: oklch(96.5% 0.005 258);
+      --surface-container-high: oklch(94% 0.006 258);
+      --surface-container-highest: oklch(92% 0.007 258);
+      --on-surface: oklch(22% 0.01 258);
+      --on-surface-variant: oklch(45% 0.01 258);
+      --outline: oklch(82% 0.008 258);
+      --outline-variant: oklch(90% 0.005 258);
+      --font-display: "Plus Jakarta Sans", "PingFang SC", "Microsoft YaHei", sans-serif;
+      --font-body: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { color-scheme: light; }
+    body {
+      background: var(--background); font-family: var(--font-body); color: var(--on-surface);
+      min-height: 100vh; font-kerning: normal; -webkit-font-smoothing: antialiased;
+    }
+    ::selection { background: var(--primary-container); color: var(--on-primary-container); }
+    ::-webkit-scrollbar { width: 10px; height: 10px; }
+    ::-webkit-scrollbar-thumb { background: var(--outline-variant); border-radius: 10px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--outline); }
+    .container { max-width: 1080px; margin: 0 auto; padding: 0 24px; }
+    .text-center { text-align: center; }
+    .text-muted { color: var(--on-surface-variant); }
+    .text-primary { color: var(--primary); }
+    .text-dark { color: var(--on-surface); }
+    .small { font-size: 0.875rem; }
+    .fw-medium { font-weight: 500; }
+    .d-none { display: none !important; }
+    .d-flex { display: flex; }
+    .flex-wrap { flex-wrap: wrap; }
+    .flex-column { flex-direction: column; }
+    .align-items-center { align-items: center; }
+    .justify-content-between { justify-content: space-between; }
+    .gap-1 { gap: 0.25rem; }
+    .gap-2 { gap: 0.5rem; }
+    .gap-3 { gap: 1rem; }
+    .mb-1 { margin-bottom: 0.25rem; }
+    .mb-2 { margin-bottom: 0.5rem; }
+    .mb-3 { margin-bottom: 1rem; }
+    .mb-4 { margin-bottom: 1.5rem; }
+    .mt-1 { margin-top: 0.25rem; }
+    .mt-2 { margin-top: 0.5rem; }
+    .mt-3 { margin-top: 1rem; }
+    .mt-4 { margin-top: 1.5rem; }
+    .p-3 { padding: 1rem; }
+    .pb-4 { padding-bottom: 1.5rem; }
+    .row { display: flex; flex-wrap: wrap; gap: 16px; }
+    .col-6 { flex: 0 0 calc(50% - 8px); max-width: calc(50% - 8px); }
+    @media (min-width: 768px) { .col-md-3 { flex: 0 0 calc(20% - 12.8px); max-width: calc(20% - 12.8px); } }
+
+    /* Material Symbols */
+    .material-symbols-outlined { font-size: 18px; vertical-align: middle; line-height: 1; user-select: none; font-variation-settings: "FILL" 0, "wght" 400, "GRAD" 0, "opsz" 20; }
+
+    /* Masthead (Google app bar 风格) */
+    .hero-header { padding: 36px 0 24px; display: flex; flex-direction: column; gap: 4px; }
+    .hero-header h1 {
+      font-family: var(--font-display); font-weight: 600; font-size: 1.85rem;
+      letter-spacing: -0.015em; line-height: 1.2; color: var(--on-surface);
+    }
+    .hero-header .meta {
+      display: flex; gap: 8px; font-size: 0.78rem; color: var(--on-surface-variant); margin-top: 6px; align-items: center;
+    }
+    .hero-header .meta .ver {
+      background: var(--primary-container); color: var(--on-primary-container);
+      padding: 3px 10px; border-radius: 12px; font-weight: 600; font-size: 0.72rem; letter-spacing: 0.02em;
+    }
+    .hero-header .subtitle { margin-top: 6px; color: var(--on-surface-variant); font-size: 0.9rem; max-width: 64ch; line-height: 1.6; }
+    .risk-notice {
+      margin-top: 14px; display: flex; align-items: flex-start; gap: 10px;
+      background: oklch(96% 0.02 65); border: 1px solid oklch(88% 0.05 65);
+      border-radius: 14px; padding: 12px 16px; font-size: 0.82rem; color: oklch(30% 0.06 65); line-height: 1.6;
+    }
+    .risk-notice .material-symbols-outlined { font-size: 20px; flex-shrink: 0; margin-top: 1px; color: oklch(55% 0.1 65); }
+
+    /* 主 Surface 容器 */
+    .main-card {
+      background: var(--surface); border: 1px solid var(--outline-variant);
+      border-radius: 24px; padding: 28px 32px; margin-bottom: 20px;
+      box-shadow: 0 1px 2px oklch(22% 0.01 258 / 0.06), 0 1px 3px oklch(22% 0.01 258 / 0.04);
+    }
+    .card-body { padding: 0; }
+
+    /* Section 标题 */
+    .section-title { font-weight: 500; color: var(--on-surface); font-size: 0.92rem; display: flex; align-items: center; gap: 8px; }
+    .section-title .material-symbols-outlined { color: var(--primary); font-size: 20px; }
+
+    /* Form (Material 3 outlined) */
+    textarea, input[type="text"], select {
+      width: 100%; padding: 12px 14px; border: 1px solid var(--outline); border-radius: 12px;
+      font-size: 0.95rem; line-height: 1.6; outline: none;
+      transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      font-family: inherit; background: var(--surface); color: var(--on-surface);
+    }
+    textarea { resize: vertical; }
+    textarea::placeholder, input::placeholder { color: var(--on-surface-variant); }
+    textarea:focus, input[type="text"]:focus, select:focus { border-color: var(--primary); box-shadow: 0 0 0 3px var(--primary-container); }
+
+    /* Buttons (Material 3 pill 形状) */
+    .btn {
+      display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px;
+      border: none; border-radius: 20px; font-size: 0.875rem; font-weight: 500;
+      cursor: pointer; transition: background-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
+      white-space: nowrap; font-family: inherit; line-height: 1.4;
+      background: transparent; color: var(--primary);
+    }
+    .btn:disabled { opacity: 0.38; cursor: not-allowed; }
+    .btn-primary { background: var(--primary); color: var(--on-primary); box-shadow: 0 1px 2px oklch(22% 0.01 258 / 0.2); }
+    .btn-primary:hover:not(:disabled) { box-shadow: 0 2px 8px oklch(54% 0.16 258 / 0.3); }
+    .btn-secondary { background: var(--surface-container); color: var(--primary); }
+    .btn-secondary:hover:not(:disabled) { background: var(--surface-container-high); }
+    .btn-success { background: oklch(94% 0.04 155); color: oklch(28% 0.07 155); }
+    .btn-success:hover:not(:disabled) { background: oklch(90% 0.05 155); }
+    .btn-warning { background: oklch(94% 0.04 65); color: oklch(28% 0.07 65); }
+    .btn-warning:hover:not(:disabled) { background: oklch(90% 0.05 65); }
+    .btn-purple { background: oklch(94% 0.04 290); color: oklch(28% 0.08 290); }
+    .btn-purple:hover:not(:disabled) { background: oklch(90% 0.05 290); }
+    .btn-sha { background: var(--secondary); color: oklch(99% 0.005 200); }
+    .btn-sha:hover:not(:disabled) { background: oklch(48% 0.14 200); }
+    .btn-sm { padding: 6px 14px; font-size: 0.78rem; }
+    .action-btns { padding: 12px 0 20px; border-bottom: 1px solid var(--outline-variant); margin-bottom: 24px; }
+    .action-btns .btn { min-width: 110px; justify-content: center; }
+
+    /* Progress */
+    .progress { height: 4px; border-radius: 2px; background: var(--surface-container-high); overflow: hidden; }
+    .progress-bar { height: 100%; background: var(--primary); transition: width 0.25s ease; }
+
+    /* Stats */
+    .stat-card {
+      background: var(--surface-container-low); border: 1px solid var(--outline-variant);
+      border-radius: 16px; padding: 16px 18px; text-align: left;
+      transition: background 0.15s ease;
+    }
+    .stat-card:hover { background: var(--surface-container); }
+    .stat-num {
+      font-family: var(--font-display); font-variant-numeric: tabular-nums;
+      font-size: 1.75rem; font-weight: 600; color: var(--primary); line-height: 1.1;
+    }
+    .stat-label { font-size: 0.78rem; color: var(--on-surface-variant); margin-top: 4px; }
+
+    /* Result */
+    .result-box {
+      background: var(--surface-container-low); border: 1px solid var(--outline-variant);
+      border-radius: 16px; max-height: 480px; overflow-y: auto; padding: 6px;
+    }
+    .result-box::-webkit-scrollbar { width: 6px; }
+    .company-card {
+      background: transparent; border-radius: 12px; margin-bottom: 2px;
+      transition: background 0.15s ease; animation: fadeUp 0.25s ease-out both;
+    }
+    .company-card:hover { background: var(--surface-container); }
+    .company-card .card-body { padding: 12px 14px; }
+    .company-name { font-weight: 500; font-size: 0.95rem; color: var(--on-surface); margin-bottom: 8px; }
+    .phone-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--primary-container); color: var(--on-primary-container);
+      border-radius: 10px; padding: 4px 12px; font-size: 0.85rem; font-weight: 500;
+      margin: 2px 6px 2px 0; transition: background 0.15s ease;
+      font-variant-numeric: tabular-nums; letter-spacing: 0.01em;
+    }
+    .phone-badge:hover { background: oklch(88% 0.05 258); }
+    .phone-badge .copy-icon {
+      cursor: pointer; opacity: 0.7; transition: opacity 0.15s;
+      font-size: 16px; display: inline-flex;
+    }
+    .phone-badge .copy-icon:hover { opacity: 1; }
+    .empty-state { text-align: center; padding: 48px 16px; color: var(--on-surface-variant); }
+    .empty-state .icon { font-size: 40px; margin-bottom: 12px; color: var(--outline); display: block; }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+
+    /* Pagination */
+    .page-btn {
+      padding: 6px 14px; border-radius: 16px; border: 1px solid var(--outline);
+      background: transparent; color: var(--on-surface); font-size: 0.85rem; cursor: pointer;
+      transition: all 0.15s ease; font-family: inherit;
+    }
+    .page-btn:hover { background: var(--surface-container); }
+    .page-btn:disabled { opacity: 0.35; pointer-events: none; }
+
+    /* Search (chip 形前缀) */
+    .search-box { max-width: 320px; display: flex; }
+    .search-box .search-prefix {
+      padding: 0.4rem 0.9rem; background: var(--surface-container-low); border: 1px solid var(--outline);
+      border-radius: 18px 0 0 18px; font-size: 0.78rem; color: var(--on-surface-variant);
+      display: flex; align-items: center; gap: 6px; border-right: none;
+    }
+    .search-box input { border-radius: 0 18px 18px 0; font-size: 0.875rem; padding: 0.4rem 0.9rem; border-left: none; }
+    .search-box input:focus { border-left: 1px solid var(--primary); }
+
+    /* Snackbar */
+    .toast-container { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 9999; display: flex; flex-direction: column; align-items: center; }
+    .custom-toast {
+      background: oklch(28% 0.01 258); color: oklch(98% 0.005 258); border-radius: 12px;
+      padding: 14px 20px; margin-bottom: 8px;
+      box-shadow: 0 6px 16px oklch(22% 0.01 258 / 0.25), 0 2px 4px oklch(22% 0.01 258 / 0.1);
+      display: flex; align-items: center; gap: 10px;
+      font-size: 0.875rem; animation: snackbarIn 0.25s ease-out; min-width: 280px;
+    }
+    .custom-toast.success { background: oklch(30% 0.06 155); }
+    .custom-toast.error { background: oklch(32% 0.08 25); }
+    .custom-toast.info { background: oklch(28% 0.01 258); }
+    .custom-toast .material-symbols-outlined { font-size: 20px; }
+    @keyframes snackbarIn { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    /* Drop zone */
+    .drop-zone { position: relative; }
+    .drop-zone textarea { position: relative; z-index: 1; }
+    .drop-overlay {
+      position: absolute; inset: 0; z-index: 10;
+      background: oklch(92% 0.04 258 / 0.85); backdrop-filter: blur(6px);
+      border: 2px dashed var(--primary); border-radius: 12px;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+      opacity: 0; pointer-events: none; transition: opacity 0.15s ease;
+    }
+    .drop-overlay.visible { opacity: 1; }
+    .drop-overlay span { color: var(--primary); font-weight: 600; font-size: 0.95rem; }
+    .drop-overlay small { color: var(--on-surface-variant); font-size: 0.8rem; }
+    .file-badge {
+      display: inline-flex; align-items: center; gap: 6px;
+      background: var(--surface-container); color: var(--on-surface); border: 1px solid var(--outline-variant);
+      border-radius: 14px; padding: 4px 12px; font-size: 0.8rem;
+    }
+    .file-badge .material-symbols-outlined { font-size: 16px; color: var(--primary); }
+    .file-badge .remove-file { cursor: pointer; opacity: 0.55; transition: opacity 0.15s; }
+    .file-badge .remove-file:hover { opacity: 1; color: var(--error); }
+
+    footer { color: var(--on-surface-variant); font-size: 0.78rem; text-align: center; padding: 24px 0; }
+    .open-source-link {
+      color: var(--primary); text-decoration: none; font-weight: 500;
+      transition: color 0.15s ease;
+    }
+    .open-source-link:hover { color: var(--secondary); text-decoration: underline; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .spin { display: inline-block; animation: spin 0.8s linear infinite; }
+
+    @media (max-width: 768px) {
+      .hero-header h1 { font-size: 1.5rem; }
+      .container { padding: 0 16px; }
+      .main-card { padding: 20px; border-radius: 20px; }
+      .action-btns .btn { min-width: auto; font-size: 0.8rem; padding: 8px 12px; }
+      .stat-num { font-size: 1.4rem; }
+    }  </style>
+</head>
+<body>
+  <div class="toast-container" id="toastContainer"></div>
+
+  <div class="container">
+    <header class="hero-header">
+      <h1>号码提取工具</h1>
+      <div class="meta"><span class="ver">v4.1</span><span>内部数据工具</span><span>Number Extractor</span></div>
+      <p class="subtitle">粘贴即提取，自动过滤座机。支持公司名+号码混合文本、纯号码、+86 前缀、粘连号码，可导入 TXT / CSV / XLSX，支持 SHA256 加密导出。</p>
+      <div class="risk-notice">
+        <span class="material-symbols-outlined">shield</span>
+        <span><strong>安全声明：</strong>本工具所有数据处理均在您的浏览器本地完成，<u>不会上传任何数据到服务器</u>。页面加载后可断开网络正常使用。号码数据仅存在于当前页面，关闭或刷新即清除，请及时导出保存。</span>
+      </div>
+    </header>
+
+    <main class="main-card">
+      <div class="card-body">
+        <!-- 输入区 -->
+        <div class="mb-4">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <label for="sourceData" class="section-title"><span class="material-symbols-outlined">database</span>数据源</label>
+            <div class="d-flex align-items-center gap-2">
+              <span id="dataLength" class="text-muted small">0 行</span>
+              <button id="pasteBtn" class="btn btn-sm btn-secondary"><span class="material-symbols-outlined">content_paste</span>粘贴</button>
+            </div>
+          </div>
+          <textarea id="sourceData" rows="6"
+            placeholder="请粘贴包含公司和号码的数据，或直接拖入 TXT / CSV / XLSX 文件（支持多文件）&#10;&#10;支持格式：公司A 13800138000 / 纯号码行 / +86号码 / 逗号粘连号码 / 公司名与号码无空格&#10;&#10;只提取11位手机号码（13-19开头），自动过滤座机"></textarea>
+          <div class="drop-overlay" id="dropOverlay">
+            <span>释放文件以读取内容</span>
+            <small>支持 .txt / .csv / .xlsx 文件（可同时拖入多个）</small>
+          </div>
+          <div id="fileInfo" class="mt-2 d-none">
+            <div id="fileBadges" class="d-flex flex-wrap gap-2"></div>
+          </div>
+        </div>
+
+        <!-- 操作按钮 -->
+        <div class="d-flex flex-wrap gap-2 mb-4 action-btns">
+          <button id="extractBtn" class="btn btn-primary" onclick="extractData()"><span class="material-symbols-outlined">play_arrow</span>提取号码</button>
+          <button id="clearBtn" class="btn btn-secondary" onclick="clearInput()"><span class="material-symbols-outlined">delete</span>清空</button>
+          <button id="copyBtn" class="btn btn-success" onclick="copyAllResults()" disabled><span class="material-symbols-outlined">content_copy</span>复制全部</button>
+          <button id="exportTxtBtn" class="btn btn-warning" onclick="exportToTxt()" disabled><span class="material-symbols-outlined">description</span>导出 TXT</button>
+          <button id="exportXlsxBtn" class="btn btn-purple" onclick="exportToXlsx()" disabled><span class="material-symbols-outlined">table_chart</span>导出 XLSX</button>
+          <button id="exportShaTxtBtn" class="btn btn-sha" onclick="exportShaTxt()" disabled><span class="material-symbols-outlined">lock</span>SHA256 TXT</button>
+          <button id="exportShaXlsxBtn" class="btn btn-sha" onclick="exportShaXlsx()" disabled><span class="material-symbols-outlined">shield</span>SHA256 XLSX</button>
+        </div>
+
+        <!-- 进度条 -->
+        <div id="progressContainer" class="mb-4 d-none">
+          <div class="d-flex justify-content-between mb-1">
+            <span class="small fw-medium text-dark">处理进度</span>
+            <span id="progressText" class="small text-muted">0%</span>
+          </div>
+          <div class="progress">
+            <div id="progressBar" class="progress-bar" style="width:0%"></div>
+          </div>
+          <div id="statusText" class="mt-1 small text-muted">正在处理...</div>
+        </div>
+
+        <!-- 统计指标 -->
+        <div id="statsRow" class="row mb-4 d-none">
+          <div class="col-6 col-md-3">
+            <div class="stat-card">
+              <div class="stat-num" id="statCompanies">0</div>
+              <div class="stat-label">公司数量</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-card">
+              <div class="stat-num" id="statPhones">0</div>
+              <div class="stat-label">手机号码</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-card">
+              <div class="stat-num" id="statUnique">0</div>
+              <div class="stat-label">去重号码</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-card">
+              <div class="stat-num" id="statFiltered">0</div>
+              <div class="stat-label">过滤座机</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-card">
+              <div class="stat-num" id="statSkipped">0</div>
+              <div class="stat-label">无号码行</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 跳过行预览 -->
+        <div id="skippedBox" class="mb-4 d-none">
+          <div class="small fw-medium text-dark mb-1">未提取到号码的行（前 5 条，请人工核对）</div>
+          <div id="skippedSamples" class="small text-muted" style="border:1px solid oklch(89% 0.005 260);border-left:3px solid oklch(60% 0.13 65);border-radius:2px;padding:0.6rem 0.8rem;line-height:1.8;"></div>
+        </div>
+
+        <!-- 结果区 -->
+        <div id="resultContainer" class="d-none">
+          <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-3">
+            <span class="section-title"><span class="material-symbols-outlined">checklist</span>提取结果</span>
+            <div class="search-box">
+              <span class="search-prefix"><span class="material-symbols-outlined">search</span>搜索</span>
+              <input id="searchInput" type="text" placeholder="公司名..." oninput="onSearch()">
+            </div>
+          </div>
+
+          <div id="paginationControls" class="d-flex justify-content-between align-items-center mb-3 d-none">
+            <div class="d-flex align-items-center gap-2">
+              <button id="prevPageBtn" class="page-btn" onclick="previousPage()">‹</button>
+              <span id="pageInfo" class="small text-muted">第 1 页，共 1 页</span>
+              <button id="nextPageBtn" class="page-btn" onclick="nextPage()">›</button>
+            </div>
+            <select id="pageSize" onchange="changePageSize()">
+              <option value="20">20条/页</option>
+              <option value="50" selected>50条/页</option>
+              <option value="100">100条/页</option>
+              <option value="200">200条/页</option>
+            </select>
+          </div>
+
+          <div class="result-box p-3" id="resultContent"></div>
+        </div>
+      </div>
+    </main>
+
+    <footer class="text-center pb-4">
+      <p>全格式兜底提取 · 支持纯号码行 / +86前缀 / 粘连号码 · XLSX 多Sheet · CSV编码自适应 · SHA256 加密导出</p>
+      <p class="mt-2">开源地址：<a href="https://cnb.cool/centosclub/number-extraction-tool" target="_blank" class="open-source-link">CNB</a>　|　<a href="https://github.com/typzhiainia/number-extraction-tool" target="_blank" class="open-source-link">GitHub</a></p>
+    </footer>
+  </div>
+
+  <script>
+    let companyPhoneData = [];
+    let currentPage = 1;
+    let pageSize = 50;
+    let searchKeyword = '';
+    let totalFiltered = 0;
+
+    // ====== SHA256 ======
+    async function sha256(message) {
+      const msgBuffer = new TextEncoder().encode(message);
+      const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+      return Array.from(new Uint8Array(hashBuffer)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+
+    async function sha256Phone(phone) { return await sha256(phone); }
+
+    // ====== Toast ======
+    function showToast(message, type) {
+      type = type || 'info';
+      var icons = { success: '<span class="material-symbols-outlined">check_circle</span>', error: '<span class="material-symbols-outlined">error</span>', info: '<span class="material-symbols-outlined">info</span>' };
+      var container = document.getElementById('toastContainer');
+      var toast = document.createElement('div');
+      toast.className = 'custom-toast ' + type;
+      toast.innerHTML = '<span>' + (icons[type] || icons.info) + '</span><span>' + message + '</span>';
+      container.appendChild(toast);
+      setTimeout(function() {
+        toast.style.opacity = '0';
+        toast.style.transform = 'translateX(50px)';
+        toast.style.transition = 'all 0.3s';
+        setTimeout(function() { toast.remove(); }, 300);
+      }, 2500);
+    }
+
+    // ====== 提取逻辑（4.0 重写：全格式兜底，不漏号） ======
+    function extractCompanyPhones(text) {
+      var lines = text.split('\n');
+      var companiesMap = new Map();
+      var filteredCount = 0;
+      var skippedCount = 0;
+      var skippedSamples = [];
+      var PHONE_RE = /^1[3-9]\d{9}$/;
+      var P86_RE = /^86(1[3-9]\d{9})$/;
+      var PHONE_GLOBAL = /1[3-9]\d{9}/g;
+
+      lines.forEach(function(rawLine) {
+        var line = rawLine.replace(/\r/g, '').trim();
+        if (!line) return;
+        // 中英文逗号/顿号/分号/斜杠等统一转为空格，避免粘连丢号
+        var tokens = line.replace(/[，,、；;|\/\\·]+/g, ' ').split(/\s+/).filter(Boolean);
+
+        var phones = [];
+        var companyParts = [];
+
+        tokens.forEach(function(token) {
+          var digits = token.replace(/\D/g, '');
+          if (!digits) { companyParts.push(token); return; }
+
+          var extracted = null;
+          if (PHONE_RE.test(digits)) {
+            extracted = [digits];
+          } else if (P86_RE.test(digits)) {
+            extracted = [digits.slice(2)]; // 剥离 86 / +86 前缀
+          } else if (digits.length > 11) {
+            // 粘连号码（如 1380013800013900138001）或带少量杂字符
+            var ms = digits.match(PHONE_GLOBAL);
+            if (ms) {
+              var leftover = digits.replace(PHONE_GLOBAL, '');
+              if (leftover.length <= 3) extracted = ms;
+            }
+          }
+
+          var numericish = token.replace(/[\d+\-()（）.\s]/g, '') === '';
+          if (extracted) {
+            phones = phones.concat(extracted);
+            // 号码 token 中残留的文本（如 公司A13800138000 → 公司A）回收到公司名
+            var txt = token.replace(/[\d+\-()（）.,，、；;|\/\\·]/g, '').trim();
+            if (txt) companyParts.push(txt);
+          } else if (numericish && digits.length >= 7 && digits.length <= 12) {
+            filteredCount++; // 座机/短号，计数并丢弃
+          } else {
+            companyParts.push(token); // 含数字但不构成号码的文本（如 360公司）
+          }
+        });
+
+        if (!phones.length) {
+          skippedCount++;
+          if (skippedSamples.length < 5) {
+            skippedSamples.push(line.length > 50 ? line.slice(0, 50) + '…' : line);
+          }
+          return;
+        }
+
+        var company = companyParts.join(' ').replace(/\s+/g, ' ').trim() || '（无公司名）';
+        phones = Array.from(new Set(phones));
+        if (companiesMap.has(company)) {
+          companiesMap.set(company, Array.from(new Set(companiesMap.get(company).concat(phones))));
+        } else {
+          companiesMap.set(company, phones);
+        }
+      });
+
+      return {
+        data: Array.from(companiesMap.entries()).map(function(entry) {
+          return { company: entry[0], phones: entry[1] };
+        }),
+        filteredCount: filteredCount,
+        skippedCount: skippedCount,
+        skippedSamples: skippedSamples
+      };
+    }
+
+    // ====== 结果渲染 ======
+    function getFilteredData() {
+      if (!searchKeyword) return companyPhoneData;
+      var kw = searchKeyword.toLowerCase();
+      return companyPhoneData.filter(function(item) { return item.company.toLowerCase().indexOf(kw) !== -1; });
+    }
+
+    function updateResults() {
+      var resultContent = document.getElementById('resultContent');
+      resultContent.innerHTML = '';
+
+      if (companyPhoneData.length === 0) {
+        resultContent.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined icon">inbox</span><p>暂无数据，请先输入并提取</p></div>';
+        toggleExportBtns(false);
+        document.getElementById('paginationControls').classList.add('d-none');
+        return;
+      }
+
+      var filtered = getFilteredData();
+      totalFiltered = filtered.length;
+      var usePagination = filtered.length > pageSize;
+      var dataToShow;
+
+      if (usePagination) {
+        var start = (currentPage - 1) * pageSize;
+        dataToShow = filtered.slice(start, Math.min(start + pageSize, filtered.length));
+        updatePaginationControls(filtered.length);
+        document.getElementById('paginationControls').classList.remove('d-none');
+      } else {
+        dataToShow = filtered;
+        document.getElementById('paginationControls').classList.add('d-none');
+      }
+
+      if (dataToShow.length === 0) {
+        resultContent.innerHTML = '<div class="empty-state"><span class="material-symbols-outlined icon">search_off</span><p>未找到匹配 "' + searchKeyword + '" 的公司</p></div>';
+        toggleExportBtns(false);
+        return;
+      }
+
+      dataToShow.forEach(function(item) {
+        var card = document.createElement('div');
+        card.className = 'company-card';
+        var body = document.createElement('div');
+        body.className = 'card-body';
+
+        var nameEl = document.createElement('div');
+        nameEl.className = 'company-name';
+        nameEl.textContent = item.company === '（无公司名）' ? '纯号码（未关联公司）' : item.company;
+
+        var phonesBox = document.createElement('div');
+        phonesBox.className = 'd-flex flex-wrap';
+
+        item.phones.forEach(function(phone) {
+          var badge = document.createElement('span');
+          badge.className = 'phone-badge';
+          badge.innerHTML = phone + '<span class="copy-icon material-symbols-outlined" onclick="copyPhone(\'' + phone + '\')">content_copy</span>';
+          phonesBox.appendChild(badge);
+        });
+
+        var copyAllBtn = document.createElement('button');
+        copyAllBtn.className = 'btn btn-sm btn-secondary mt-2';
+        copyAllBtn.textContent = item.company === '（无公司名）'
+          ? '复制全部号码 (' + item.phones.length + ')'
+          : '复制该司全部 (' + item.phones.length + ')';
+        copyAllBtn.onclick = function() { copyAllCompanyPhones(item.phones); };
+
+        body.appendChild(nameEl);
+        body.appendChild(phonesBox);
+        body.appendChild(copyAllBtn);
+        card.appendChild(body);
+        resultContent.appendChild(card);
+      });
+
+      toggleExportBtns(true);
+    }
+
+    function toggleExportBtns(enabled) {
+      ['exportTxtBtn','exportXlsxBtn','exportShaTxtBtn','exportShaXlsxBtn','copyBtn'].forEach(function(id) {
+        document.getElementById(id).disabled = !enabled;
+      });
+    }
+
+    function updatePaginationControls(total) {
+      var totalPages = Math.ceil(total / pageSize);
+      document.getElementById('pageInfo').textContent = '第 ' + currentPage + ' 页，共 ' + totalPages + ' 页（' + total + '条）';
+      document.getElementById('prevPageBtn').disabled = currentPage === 1;
+      document.getElementById('nextPageBtn').disabled = currentPage === totalPages;
+    }
+
+    function updateStats(result) {
+      var data = result.data;
+      var totalPhones = data.reduce(function(s, i) { return s + i.phones.length; }, 0);
+      var allPhones = data.reduce(function(arr, i) { return arr.concat(i.phones); }, []);
+      document.getElementById('statCompanies').textContent = data.length;
+      document.getElementById('statPhones').textContent = totalPhones;
+      document.getElementById('statUnique').textContent = new Set(allPhones).size;
+      document.getElementById('statFiltered').textContent = result.filteredCount;
+      document.getElementById('statSkipped').textContent = result.skippedCount;
+      document.getElementById('statsRow').classList.remove('d-none');
+
+      var skippedBox = document.getElementById('skippedBox');
+      if (result.skippedCount > 0) {
+        document.getElementById('skippedSamples').textContent = result.skippedSamples.join('　|　');
+        skippedBox.classList.remove('d-none');
+      } else {
+        skippedBox.classList.add('d-none');
+      }
+    }
+
+    // ====== 导出 ======
+    function getDateString() {
+      var d = new Date();
+      return '' + d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
+    }
+
+    function downloadBlob(content, filename, mimeType) {
+      var blob = new Blob([content], { type: mimeType });
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url; a.download = filename;
+      document.body.appendChild(a); a.click();
+      document.body.removeChild(a); URL.revokeObjectURL(url);
+    }
+
+    function exportToTxt() {
+      if (!companyPhoneData.length) return;
+      var allPhones = [];
+      companyPhoneData.forEach(function(item) { allPhones = allPhones.concat(item.phones); });
+      var uniquePhones = Array.from(new Set(allPhones)).sort();
+      downloadBlob(uniquePhones.join('\n'), '手机号码_' + getDateString() + '.txt', 'text/plain');
+      showToast('TXT 导出成功', 'success');
+    }
+
+    // 是否全部为纯号码（无公司名）
+    function isPurePhonesOnly() {
+      return companyPhoneData.length > 0 &&
+        companyPhoneData.every(function(i) { return i.company === '（无公司名）'; });
+    }
+
+    function exportToXlsx() {
+      if (!companyPhoneData.length) return;
+      var rows;
+      if (isPurePhonesOnly()) {
+        // 纯号码场景：单列号码列表
+        var all = [];
+        companyPhoneData.forEach(function(i) { all = all.concat(i.phones); });
+        rows = [['手机号码']].concat(Array.from(new Set(all)).sort().map(function(p) { return [p]; }));
+      } else {
+        var maxCount = Math.max.apply(null, companyPhoneData.map(function(i) { return i.phones.length; }));
+        var headers = ['公司名称'];
+        for (var i = 1; i <= maxCount; i++) headers.push('手机号码' + i);
+        rows = [headers].concat(companyPhoneData.map(function(item) {
+          var row = [item.company];
+          for (var j = 0; j < maxCount; j++) row.push(item.phones[j] || '');
+          return row;
+        }));
+      }
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, '号码提取');
+      XLSX.writeFile(wb, '号码提取_' + getDateString() + '.xlsx');
+      showToast('XLSX 导出成功', 'success');
+    }
+
+    async function exportShaTxt() {
+      if (!companyPhoneData.length) return;
+      showToast('正在生成 SHA256 加密文件...', 'info');
+      var allPhones = [];
+      companyPhoneData.forEach(function(item) { allPhones = allPhones.concat(item.phones); });
+      var uniquePhones = Array.from(new Set(allPhones)).sort();
+      var lines = [];
+      for (var i = 0; i < uniquePhones.length; i++) {
+        lines.push(await sha256Phone(uniquePhones[i]));
+      }
+      downloadBlob(lines.join('\n'), 'SHA256_' + getDateString() + '.txt', 'text/plain');
+      showToast('SHA256 TXT 导出成功', 'success');
+    }
+
+    async function exportShaXlsx() {
+      if (!companyPhoneData.length) return;
+      showToast('正在生成 SHA256 加密文件...', 'info');
+      var rows;
+      if (isPurePhonesOnly()) {
+        var all = [];
+        companyPhoneData.forEach(function(i) { all = all.concat(i.phones); });
+        var unique = Array.from(new Set(all)).sort();
+        rows = [['手机号码(SHA256)']];
+        for (var u = 0; u < unique.length; u++) rows.push([await sha256Phone(unique[u])]);
+      } else {
+        var maxCount = Math.max.apply(null, companyPhoneData.map(function(i) { return i.phones.length; }));
+        var headers = ['公司名称'];
+        for (var i = 1; i <= maxCount; i++) headers.push('手机号码' + i + '(SHA256)');
+        rows = [headers];
+        for (var k = 0; k < companyPhoneData.length; k++) {
+          var item = companyPhoneData[k];
+          var row = [item.company];
+          for (var m = 0; m < maxCount; m++) {
+            row.push(item.phones[m] ? await sha256Phone(item.phones[m]) : '');
+          }
+          rows.push(row);
+        }
+      }
+      var ws = XLSX.utils.aoa_to_sheet(rows);
+      var wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, 'SHA256号码');
+      XLSX.writeFile(wb, '号码提取_SHA256_' + getDateString() + '.xlsx');
+      showToast('SHA256 XLSX 导出成功', 'success');
+    }
+
+    // ====== 操作 ======
+    function extractData() {
+      var text = document.getElementById('sourceData').value.trim();
+      if (!text) { showToast('请输入数据后再提取', 'error'); return; }
+
+      var progressContainer = document.getElementById('progressContainer');
+      var resultContainer = document.getElementById('resultContainer');
+      var extractBtn = document.getElementById('extractBtn');
+
+      progressContainer.classList.remove('d-none');
+      resultContainer.classList.add('d-none');
+      extractBtn.disabled = true;
+      extractBtn.innerHTML = '<span class="material-symbols-outlined spin">progress_activity</span> 处理中...';
+
+      var progress = 0;
+      var progressBar = document.getElementById('progressBar');
+      var progressText = document.getElementById('progressText');
+      var statusText = document.getElementById('statusText');
+      var steps = ['读取数据...', '解析公司名称...', '匹配手机号码...', '过滤座机号码...', '数据去重...', '生成结果...'];
+      var timer = setInterval(function() {
+        progress = Math.min(progress + Math.random() * 20 + 5, 95);
+        progressBar.style.width = progress + '%';
+        progressText.textContent = Math.round(progress) + '%';
+        statusText.textContent = steps[Math.min(Math.floor(progress / 18), steps.length - 1)];
+      }, 80);
+
+      setTimeout(function() {
+        clearInterval(timer);
+        try {
+          var result = extractCompanyPhones(text);
+          var data = result.data;
+          companyPhoneData = data;
+          currentPage = 1;
+          searchKeyword = '';
+          document.getElementById('searchInput').value = '';
+          progressBar.style.width = '100%';
+          progressText.textContent = '100%';
+          statusText.textContent = '处理完成!';
+          setTimeout(function() {
+            progressContainer.classList.add('d-none');
+            resultContainer.classList.remove('d-none');
+            updateStats(result);
+            updateResults();
+            resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            var msg = '提取完成，共 ' + data.length + ' 个公司';
+            if (result.skippedCount > 0) msg += '，' + result.skippedCount + ' 行无号码已跳过';
+            showToast(msg, result.skippedCount > 0 ? 'info' : 'success');
+          }, 300);
+        } catch (err) {
+          console.error('提取出错:', err);
+          showToast('处理出错: ' + err.message, 'error');
+          progressContainer.classList.add('d-none');
+        } finally {
+          extractBtn.disabled = false;
+          extractBtn.innerHTML = '<span class="material-symbols-outlined">play_arrow</span> 提取号码';
+        }
+      }, 600);
+    }
+
+    function clearInput() {
+      document.getElementById('sourceData').value = '';
+      document.getElementById('dataLength').textContent = '0 行';
+      document.getElementById('resultContainer').classList.add('d-none');
+      document.getElementById('statsRow').classList.add('d-none');
+      document.getElementById('skippedBox').classList.add('d-none');
+      document.getElementById('searchInput').value = '';
+      searchKeyword = '';
+      companyPhoneData = [];
+      toggleExportBtns(false);
+      document.getElementById('sourceData').focus();
+      showToast('已清空', 'info');
+    }
+
+    function copyPhone(phone) {
+      navigator.clipboard.writeText(phone).then(function() { showToast('已复制: ' + phone, 'success'); });
+    }
+
+    function copyAllCompanyPhones(phones) {
+      navigator.clipboard.writeText(phones.join('\n')).then(function() { showToast('已复制 ' + phones.length + ' 个号码', 'success'); });
+    }
+
+    function copyAllResults() {
+      if (!companyPhoneData.length) return;
+      var text = companyPhoneData.map(function(item) {
+        return item.company + '\n' + item.phones.join('\n');
+      }).join('\n\n');
+      navigator.clipboard.writeText(text).then(function() { showToast('全部结果已复制', 'success'); });
+    }
+
+    function parseCsvToText(csvText) {
+      var lines = csvText.split('\n').filter(function(l) { return l.trim(); });
+      if (!lines.length) return '';
+      var sep = lines[0].indexOf('\t') > -1 ? '\t' : ',';
+      // 不再预筛列，整行交给提取器兜底处理，避免丢列
+      return lines.map(function(l) {
+        return l.split(sep).map(function(c) { return c.trim().replace(/^"|"$/g, ''); })
+          .filter(Boolean).join(' ');
+      }).join('\n');
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) return bytes + ' B';
+      if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+      return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+    }
+
+    function removeFile(index) {
+      var badges = document.getElementById('fileBadges');
+      var badge = badges.children[index];
+      if (badge) badge.remove();
+      if (!badges.children.length) {
+        document.getElementById('fileInfo').classList.add('d-none');
+        document.getElementById('sourceData').value = '';
+        document.getElementById('sourceData').dispatchEvent(new Event('input'));
+      } else {
+        var sourceData = document.getElementById('sourceData');
+        var currentText = sourceData.value;
+        var fileText = badge.getAttribute('data-text');
+        if (fileText) {
+          sourceData.value = currentText.split('\n').filter(function(line) {
+            return fileText.split('\n').indexOf(line) === -1;
+          }).join('\n');
+          sourceData.dispatchEvent(new Event('input'));
+        }
+      }
+    }
+
+    function readFileAsText(file) {
+      var ext = file.name.split('.').pop().toLowerCase();
+      return new Promise(function(resolve, reject) {
+        var reader = new FileReader();
+        if (ext === 'xlsx' || ext === 'xls') {
+          reader.onload = function(ev) {
+            try {
+              if (typeof XLSX === 'undefined') { reject('SheetJS 库未加载，请检查网络后刷新页面'); return; }
+              var data = new Uint8Array(ev.target.result);
+              var workbook = XLSX.read(data, { type: 'array' });
+              // 遍历所有 Sheet，不再只读第一个
+              var allRows = [];
+              workbook.SheetNames.forEach(function(sheetName) {
+                var ws = workbook.Sheets[sheetName];
+                var jsonData = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: '' });
+                allRows = allRows.concat(jsonData);
+              });
+              // 整行拼接，交给提取器兜底解析，不预丢任何列
+              var text = allRows.map(function(row) {
+                if (!row) return '';
+                return row.map(function(c) { return String(c).trim(); }).filter(Boolean).join(' ');
+              }).filter(function(l) { return l; }).join('\n');
+              resolve(text);
+            } catch (err) { reject('Excel 解析失败: ' + err.message); }
+          };
+          reader.onerror = function() { reject('文件读取失败'); };
+          reader.readAsArrayBuffer(file);
+        } else {
+          reader.onload = function(ev) {
+            // 先按 UTF-8 解码，出现乱码字符则回退 GBK（Excel 导出的中文 CSV 常见）
+            var buf = ev.target.result;
+            var text = new TextDecoder('utf-8').decode(buf);
+            if (text.indexOf('�') !== -1) {
+              try { text = new TextDecoder('gbk').decode(buf); } catch (e) { /* 保持 UTF-8 结果 */ }
+            }
+            if (ext === 'csv') text = parseCsvToText(text);
+            resolve(text);
+          };
+          reader.onerror = function() { reject('文件读取失败'); };
+          reader.readAsArrayBuffer(file);
+        }
+      });
+    }
+
+    function onSearch() { searchKeyword = document.getElementById('searchInput').value.trim(); currentPage = 1; updateResults(); }
+    function previousPage() { if (currentPage > 1) { currentPage--; updateResults(); } }
+    function nextPage() { var tp = Math.ceil(totalFiltered / pageSize); if (currentPage < tp) { currentPage++; updateResults(); } }
+    function changePageSize() { pageSize = parseInt(document.getElementById('pageSize').value); currentPage = 1; updateResults(); }
+
+    // ====== 初始化 ======
+    document.addEventListener('DOMContentLoaded', function() {
+      var sourceData = document.getElementById('sourceData');
+      var dataLength = document.getElementById('dataLength');
+
+      sourceData.addEventListener('input', function() {
+        var lines = sourceData.value.split('\n').filter(function(l) { return l.trim(); });
+        dataLength.textContent = lines.length + ' 行';
+      });
+
+      document.getElementById('pasteBtn').addEventListener('click', function() {
+        navigator.clipboard.readText().then(function(text) {
+          sourceData.value = text;
+          sourceData.dispatchEvent(new Event('input'));
+          sourceData.focus();
+          showToast('已粘贴内容', 'success');
+        }).catch(function() { showToast('无法访问剪贴板，请手动 Ctrl+V', 'error'); });
+      });
+
+      sourceData.focus();
+
+      // 拖拽上传
+      var dropZone = sourceData.parentElement;
+      var overlay = document.getElementById('dropOverlay');
+      var dragCounter = 0;
+
+      dropZone.addEventListener('dragenter', function(e) { e.preventDefault(); dragCounter++; overlay.classList.add('visible'); });
+      dropZone.addEventListener('dragover', function(e) { e.preventDefault(); });
+      dropZone.addEventListener('dragleave', function(e) { e.preventDefault(); dragCounter--; if (dragCounter <= 0) { dragCounter = 0; overlay.classList.remove('visible'); } });
+
+      dropZone.addEventListener('drop', function(e) {
+        e.preventDefault(); dragCounter = 0; overlay.classList.remove('visible');
+        var files = e.dataTransfer.files;
+        if (!files || !files.length) return;
+        var allowed = ['txt','csv','log','text','xlsx','xls'];
+        var validFiles = [];
+        var skippedNames = [];
+        for (var i = 0; i < files.length; i++) {
+          var file = files[i];
+          var ext = file.name.split('.').pop().toLowerCase();
+          if (allowed.indexOf(ext) === -1) {
+            skippedNames.push(file.name);
+            continue;
+          }
+          if (file.size > 20 * 1024 * 1024) {
+            showToast(file.name + ' 过大（超过20MB），已跳过', 'error');
+            continue;
+          }
+          validFiles.push(file);
+        }
+        if (skippedNames.length > 0 && validFiles.length === 0) {
+          showToast('不支持的格式: ' + skippedNames.join(', '), 'error');
+          return;
+        }
+        if (!validFiles.length) return;
+        if (validFiles.length === 1 && skippedNames.length === 0) {
+          showToast('正在读取 1 个文件...', 'info');
+        } else {
+          showToast('正在读取 ' + validFiles.length + ' 个文件...', 'info');
+        }
+
+        var promises = validFiles.map(function(file) {
+          return readFileAsText(file).then(function(text) {
+            return { file: file, text: text };
+          });
+        });
+
+        Promise.all(promises).then(function(results) {
+          var allTexts = [];
+          var badgesContainer = document.getElementById('fileBadges');
+          var existingText = sourceData.value.trim();
+          if (existingText) allTexts.push(existingText);
+
+          results.forEach(function(r) {
+            allTexts.push(r.text);
+            var badge = document.createElement('span');
+            badge.className = 'file-badge';
+            badge.setAttribute('data-text', r.text);
+            badge.innerHTML = '<span class="material-symbols-outlined">description</span> ' + r.file.name + ' <span class="text-muted">(' + formatFileSize(r.file.size) + ')</span> <span class="material-symbols-outlined remove-file" onclick="removeFile(this.parentElement.getAttribute(\'data-index\'))">close</span>';
+            badge.setAttribute('data-index', badgesContainer.children.length);
+            badgesContainer.appendChild(badge);
+          });
+
+          sourceData.value = allTexts.join('\n');
+          sourceData.dispatchEvent(new Event('input'));
+          document.getElementById('fileInfo').classList.remove('d-none');
+          showToast('已读取 ' + results.length + ' 个文件', 'success');
+        }).catch(function(err) {
+          showToast(String(err), 'error');
+        });
+      });
+    });
+  </script>
+</body>
+</html>
