@@ -1,9 +1,11 @@
+
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>号码提取工具 4.2</title>
+  <title>号码提取工具 4.6</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
@@ -160,6 +162,10 @@
       font-size: 1.75rem; font-weight: 600; color: var(--primary); line-height: 1.1;
     }
     .stat-label { font-size: 0.78rem; color: var(--on-surface-variant); margin-top: 4px; }
+    .stat-hint { font-size: 0.72rem; color: var(--on-surface-variant); margin-top: 4px; line-height: 1.4; opacity: 0.75; }
+    .stat-card-primary { border-color: var(--primary); background: var(--primary-container); }
+    .stat-card-primary .stat-num { color: var(--on-primary-container); }
+    .stat-card-primary .stat-label, .stat-card-primary .stat-hint { color: var(--on-primary-container); }
 
     /* Result */
     .result-box {
@@ -270,7 +276,7 @@
   <div class="container">
     <header class="hero-header">
       <h1>号码提取工具</h1>
-      <div class="meta"><span class="ver">v4.1</span><span>内部数据工具</span><span>Number Extractor</span></div>
+      <div class="meta"><span class="ver">v4.6</span><span>内部数据工具</span><span>Number Extractor</span></div>
       <p class="subtitle">粘贴即提取，自动过滤座机。支持公司名+号码混合文本、纯号码、+86 前缀、粘连号码，可导入 TXT / CSV / XLSX，支持 SHA256 加密导出。</p>
       <div class="risk-notice">
         <span class="material-symbols-outlined">shield</span>
@@ -311,6 +317,13 @@
           <button id="exportShaXlsxBtn" class="btn btn-sha" onclick="exportShaXlsx()" disabled><span class="material-symbols-outlined">shield</span>SHA256 XLSX</button>
         </div>
 
+        <!-- 导出文件名设置 -->
+        <div id="exportNameRow" class="d-none" style="display:flex;align-items:center;gap:10px;margin-bottom:16px;">
+          <span style="font-size:0.85rem;color:var(--on-surface-variant);white-space:nowrap;">导出文件名：</span>
+          <input id="exportNameInput" style="width:200px;padding:6px 10px;border:1px solid var(--outline-variant);border-radius:8px;font-size:0.85rem;color:var(--on-surface);background:var(--surface);outline:none;font-family:inherit;" placeholder="手机号码" value="手机号码" onchange="onExportNameChange()">
+          <span class="text-muted small" style="white-space:nowrap;opacity:0.6;">_20260810.ext</span>
+        </div>
+
         <!-- 进度条 -->
         <div id="progressContainer" class="mb-4 d-none">
           <div class="d-flex justify-content-between mb-1">
@@ -326,21 +339,16 @@
         <!-- 统计指标 -->
         <div id="statsRow" class="row mb-4 d-none">
           <div class="col-6 col-md-3">
+            <div class="stat-card stat-card-primary">
+              <div class="stat-num" id="statUnique">0</div>
+              <div class="stat-label">去重手机号码</div>
+              <div class="stat-hint" id="statPhonesHint"></div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
             <div class="stat-card">
               <div class="stat-num" id="statCompanies">0</div>
               <div class="stat-label">公司数量</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-card">
-              <div class="stat-num" id="statPhones">0</div>
-              <div class="stat-label">手机号码</div>
-            </div>
-          </div>
-          <div class="col-6 col-md-3">
-            <div class="stat-card">
-              <div class="stat-num" id="statUnique">0</div>
-              <div class="stat-label">去重号码</div>
             </div>
           </div>
           <div class="col-6 col-md-3">
@@ -353,6 +361,12 @@
             <div class="stat-card">
               <div class="stat-num" id="statSkipped">0</div>
               <div class="stat-label">无号码行</div>
+            </div>
+          </div>
+          <div class="col-6 col-md-3">
+            <div class="stat-card">
+              <div class="stat-num" id="statIgnored" style="color:var(--on-surface-variant);">0</div>
+              <div class="stat-label">忽略列（坐标/地址/城市）</div>
             </div>
           </div>
         </div>
@@ -400,6 +414,7 @@
 
   <script>
     let companyPhoneData = [];
+    let importedFileName = ''; // 记录导入文件名（不含扩展名），用于导出命名
     let currentPage = 1;
     let pageSize = 50;
     let searchKeyword = '';
@@ -431,37 +446,59 @@
       }, 2500);
     }
 
-    // ====== 提取逻辑（4.0 重写：全格式兜底，不漏号） ======
+    // ====== 提取逻辑（4.3 改造：跳过坐标小数 / 地址 / 城市） ======
     function extractCompanyPhones(text) {
       var lines = text.split('\n');
       var companiesMap = new Map();
       var filteredCount = 0;
+      var ignoredCount = 0; // 坐标/地址/城市等噪声
       var skippedCount = 0;
       var skippedSamples = [];
       var PHONE_RE = /^1[3-9]\d{9}$/;
       var P86_RE = /^86(1[3-9]\d{9})$/;
       var PHONE_GLOBAL = /1[3-9]\d{9}/g;
 
+      function isPhoneBearingToken(token) {
+        var d = token.replace(/\D/g, '');
+        if (!d) return false;
+        if (PHONE_RE.test(d)) return true;
+        if (P86_RE.test(d)) return true;
+        if (d.length > 11) {
+          var ms = d.match(PHONE_GLOBAL);
+          if (ms && d.replace(/1[3-9]\d{9}/g, '').length <= 3) return true;
+        }
+        return false;
+      }
+
       lines.forEach(function(rawLine) {
         var line = rawLine.replace(/\r/g, '').trim();
         if (!line) return;
-        // 中英文逗号/顿号/分号/斜杠等统一转为空格，避免粘连丢号
-        var tokens = line.replace(/[，,、；;|\/\\·]+/g, ' ').split(/\s+/).filter(Boolean);
+
+        // 结构化行（CSV/XLSX 结构化输出）：TAB 左侧公司名，右侧号码源
+        var tabIdx = line.indexOf('\t');
+        var company, source;
+        if (tabIdx > 0) {
+          company = line.slice(0, tabIdx).trim();
+          source = line.slice(tabIdx + 1);
+        } else {
+          company = '';
+          source = line;
+        }
+        // 中英文逗号/顿号/分号/斜杠等统一转为空格
+        var tokens = source.replace(/[，,、；;|\/\\·]+/g, ' ').split(/\s+/).filter(Boolean);
 
         var phones = [];
-        var companyParts = [];
 
         tokens.forEach(function(token) {
           var digits = token.replace(/\D/g, '');
-          if (!digits) { companyParts.push(token); return; }
+          var hasDot = /\./.test(token);
 
           var extracted = null;
           if (PHONE_RE.test(digits)) {
             extracted = [digits];
           } else if (P86_RE.test(digits)) {
-            extracted = [digits.slice(2)]; // 剥离 86 / +86 前缀
+            extracted = [digits.slice(2)];
           } else if (digits.length > 11) {
-            // 粘连号码（如 1380013800013900138001）或带少量杂字符
             var ms = digits.match(PHONE_GLOBAL);
             if (ms) {
               var leftover = digits.replace(PHONE_GLOBAL, '');
@@ -469,16 +506,18 @@
             }
           }
 
-          var numericish = token.replace(/[\d+\-()（）.\s]/g, '') === '';
           if (extracted) {
             phones = phones.concat(extracted);
-            // 号码 token 中残留的文本（如 公司A13800138000 → 公司A）回收到公司名
-            var txt = token.replace(/[\d+\-()（）.,，、；;|\/\\·]/g, '').trim();
-            if (txt) companyParts.push(txt);
-          } else if (numericish && digits.length >= 7 && digits.length <= 12) {
-            filteredCount++; // 座机/短号，计数并丢弃
+          } else if (hasDot) {
+            // 含小数点 → 坐标/经纬度/测量值，直接忽略
+            ignoredCount++;
           } else {
-            companyParts.push(token); // 含数字但不构成号码的文本（如 360公司）
+            var numericish = token.replace(/[\d+\-()（）.\s]/g, '') === '';
+            if (numericish && digits.length >= 7 && digits.length <= 12) {
+              filteredCount++; // 真实座机
+            } else {
+              ignoredCount++; // 地址/城市/混合文本
+            }
           }
         });
 
@@ -490,7 +529,12 @@
           return;
         }
 
-        var company = companyParts.join(' ').replace(/\s+/g, ' ').trim() || '（无公司名）';
+        // 优先用 tab 左侧的公司名；通用回退：第一个 token
+        if (!company) {
+          company = tokens[0] || '';
+        }
+        if (company === '' || /^\d/.test(company)) company = '（无公司名）';
+
         phones = Array.from(new Set(phones));
         if (companiesMap.has(company)) {
           companiesMap.set(company, Array.from(new Set(companiesMap.get(company).concat(phones))));
@@ -499,13 +543,25 @@
         }
       });
 
+      // ====== 跨公司去重：每号码只归到第一家公司 ======
+      // 防止"雅度轮胎 / 西湖轮胎 / 江店轮胎"等多家店共用同一号码导致总数虚高
+      var assignedPhones = new Set();
+      var dataArray = Array.from(companiesMap.entries()).map(function(entry) {
+        var company = entry[0];
+        var phones = entry[1].filter(function(p) {
+          if (assignedPhones.has(p)) return false;
+          assignedPhones.add(p);
+          return true;
+        });
+        return { company: company, phones: phones };
+      }).filter(function(item) { return item.phones.length > 0; });
+
       return {
-        data: Array.from(companiesMap.entries()).map(function(entry) {
-          return { company: entry[0], phones: entry[1] };
-        }),
+        data: dataArray,
         filteredCount: filteredCount,
         skippedCount: skippedCount,
-        skippedSamples: skippedSamples
+        skippedSamples: skippedSamples,
+        ignoredCount: ignoredCount
       };
     }
 
@@ -602,12 +658,27 @@
       var data = result.data;
       var totalPhones = data.reduce(function(s, i) { return s + i.phones.length; }, 0);
       var allPhones = data.reduce(function(arr, i) { return arr.concat(i.phones); }, []);
+      var uniqueCount = new Set(allPhones).size;
       document.getElementById('statCompanies').textContent = data.length;
-      document.getElementById('statPhones').textContent = totalPhones;
-      document.getElementById('statUnique').textContent = new Set(allPhones).size;
+      document.getElementById('statUnique').textContent = uniqueCount;
+      // 主卡 hint：含重复总数 — 让用户一眼看出 8913 是数据中真实出现的次数（含重复），不是工具多算
+      var hintEl = document.getElementById('statPhonesHint');
+      if (totalPhones > uniqueCount) {
+        var dupCount = totalPhones - uniqueCount;
+        hintEl.textContent = '原始数据共出现 ' + totalPhones + ' 次 · 含 ' + dupCount + ' 条重复';
+      } else {
+        hintEl.textContent = '原始数据共出现 ' + totalPhones + ' 次（无重复）';
+      }
       document.getElementById('statFiltered').textContent = result.filteredCount;
       document.getElementById('statSkipped').textContent = result.skippedCount;
+      document.getElementById('statIgnored').textContent = result.ignoredCount || 0;
       document.getElementById('statsRow').classList.remove('d-none');
+      document.getElementById('exportNameRow').classList.remove('d-none');
+      // 导入文件时自动填上文件名作为导出默认名
+      var nameInput = document.getElementById('exportNameInput');
+      if (importedFileName && !nameInput.dataset.manuallyChanged) {
+        nameInput.value = importedFileName;
+      }
 
       var skippedBox = document.getElementById('skippedBox');
       if (result.skippedCount > 0) {
@@ -624,6 +695,19 @@
       return '' + d.getFullYear() + (d.getMonth()+1).toString().padStart(2,'0') + d.getDate().toString().padStart(2,'0');
     }
 
+    function getExportPrefix() {
+      var input = document.getElementById('exportNameInput');
+      // 优先取用户自定义，无自定义则用导入文件名，兜底"手机号码"
+      var base = input.value.trim() || importedFileName || '手机号码';
+      return base + '_' + getDateString();
+    }
+
+    function onExportNameChange() {
+      var input = document.getElementById('exportNameInput');
+      if (!input.value.trim()) input.value = '手机号码';
+      input.dataset.manuallyChanged = '1';
+    }
+
     function downloadBlob(content, filename, mimeType) {
       var blob = new Blob([content], { type: mimeType });
       var url = URL.createObjectURL(blob);
@@ -638,7 +722,7 @@
       var allPhones = [];
       companyPhoneData.forEach(function(item) { allPhones = allPhones.concat(item.phones); });
       var uniquePhones = Array.from(new Set(allPhones)).sort();
-      downloadBlob(uniquePhones.join('\n'), '手机号码_' + getDateString() + '.txt', 'text/plain');
+      downloadBlob(uniquePhones.join('\n'), getExportPrefix() + '.txt', 'text/plain');
       showToast('TXT 导出成功', 'success');
     }
 
@@ -669,7 +753,7 @@
       var ws = XLSX.utils.aoa_to_sheet(rows);
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, '号码提取');
-      XLSX.writeFile(wb, '号码提取_' + getDateString() + '.xlsx');
+      XLSX.writeFile(wb, getExportPrefix() + '.xlsx');
       showToast('XLSX 导出成功', 'success');
     }
 
@@ -683,7 +767,7 @@
       for (var i = 0; i < uniquePhones.length; i++) {
         lines.push(await sha256Phone(uniquePhones[i]));
       }
-      downloadBlob(lines.join('\n'), 'SHA256_' + getDateString() + '.txt', 'text/plain');
+      downloadBlob(lines.join('\n'), getExportPrefix() + '_SHA256.txt', 'text/plain');
       showToast('SHA256 TXT 导出成功', 'success');
     }
 
@@ -714,7 +798,7 @@
       var ws = XLSX.utils.aoa_to_sheet(rows);
       var wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'SHA256号码');
-      XLSX.writeFile(wb, '号码提取_SHA256_' + getDateString() + '.xlsx');
+      XLSX.writeFile(wb, getExportPrefix() + '_SHA256.xlsx');
       showToast('SHA256 XLSX 导出成功', 'success');
     }
 
@@ -753,6 +837,12 @@
           currentPage = 1;
           searchKeyword = '';
           document.getElementById('searchInput').value = '';
+          // 手动粘贴的场景：清除导入文件名，恢复输入框默认值
+          if (!importedFileName) {
+            var ni = document.getElementById('exportNameInput');
+            ni.value = '手机号码';
+            delete ni.dataset.manuallyChanged;
+          }
           progressBar.style.width = '100%';
           progressText.textContent = '100%';
           statusText.textContent = '处理完成!';
@@ -764,6 +854,7 @@
             resultContainer.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             var msg = '提取完成，共 ' + data.length + ' 个公司';
             if (result.skippedCount > 0) msg += '，' + result.skippedCount + ' 行无号码已跳过';
+            if (result.ignoredCount > 0) msg += '，' + result.ignoredCount + ' 个坐标/地址已忽略';
             showToast(msg, result.skippedCount > 0 ? 'info' : 'success');
           }, 300);
         } catch (err) {
@@ -786,6 +877,15 @@
       document.getElementById('searchInput').value = '';
       searchKeyword = '';
       companyPhoneData = [];
+      importedFileName = '';
+      var ni = document.getElementById('exportNameInput');
+      ni.value = '手机号码';
+      delete ni.dataset.manuallyChanged;
+      document.getElementById('exportNameRow').classList.add('d-none');
+      // 清除导入文件 badges
+      var badges = document.getElementById('fileBadges');
+      badges.innerHTML = '';
+      document.getElementById('fileInfo').classList.add('d-none');
       toggleExportBtns(false);
       document.getElementById('sourceData').focus();
       showToast('已清空', 'info');
@@ -811,9 +911,58 @@
       var lines = csvText.split('\n').filter(function(l) { return l.trim(); });
       if (!lines.length) return '';
       var sep = lines[0].indexOf('\t') > -1 ? '\t' : ',';
-      // 不再预筛列，整行交给提取器兜底处理，避免丢列
+
+      // 检测是否为结构化 CSV（有表头）：含「名称」+「电话」列名
+      // RFC 4180 兼容的 CSV 行解析：处理字段内逗号 / 转义引号
+      function parseCsvLine(line, sepChar) {
+        var cols = [];
+        var cur = '';
+        var inQuote = false;
+        for (var k = 0; k < line.length; k++) {
+          var ch = line[k];
+          if (ch === '"') {
+            if (inQuote && line[k + 1] === '"') { cur += '"'; k++; }
+            else inQuote = !inQuote;
+          } else if (ch === sepChar && !inQuote) {
+            cols.push(cur); cur = '';
+          } else {
+            cur += ch;
+          }
+        }
+        cols.push(cur);
+        return cols;
+      }
+
+
+      var headerCols = parseCsvLine(lines[0], sep).map(function(c) { return c.trim().replace(/^"|"$/g, ''); });
+      var nameIdx = -1, phoneIdx = -1, extraPhoneIdxs = [];
+      var NAME_RE = /^(名称|公司|商家|店铺|店名|商户|企业|主体|店铺名称|公司名称)$/i;
+      var PHONE_RE = /^(电话|手机|联系方式|联系电话|联系手机|phone|mobile|tel|contact|手机号|手机号码)$/i;
+      headerCols.forEach(function(h, idx) {
+        if (NAME_RE.test(h)) nameIdx = idx;
+        else if (PHONE_RE.test(h)) { if (phoneIdx === -1) phoneIdx = idx; else extraPhoneIdxs.push(idx); }
+      });
+
+      // 结构化 CSV：只输出 名称<TAB>电话，跳过地址/坐标/城市等噪声列
+      if (nameIdx > -1 && phoneIdx > -1) {
+        var out = [];
+        for (var i = 1; i < lines.length; i++) {
+          var cols = parseCsvLine(lines[i], sep).map(function(c) { return c.trim().replace(/^"|"$/g, ''); });
+          var name = cols[nameIdx] || '';
+          var phoneCol = cols[phoneIdx] || '';
+          // 合并多个备用电话列
+          extraPhoneIdxs.forEach(function(idx) {
+            var extra = cols[idx] || '';
+            if (extra) phoneCol += ';' + extra;
+          });
+          if (name || phoneCol) out.push(name + '\t' + phoneCol);
+        }
+        return out.join('\n');
+      }
+
+      // 非结构化 CSV：保留通用兜底（整行拼空格，避免丢数据）
       return lines.map(function(l) {
-        return l.split(sep).map(function(c) { return c.trim().replace(/^"|"$/g, ''); })
+        return parseCsvLine(l, sep).map(function(c) { return c.trim().replace(/^"|"$/g, ''); })
           .filter(Boolean).join(' ');
       }).join('\n');
     }
@@ -966,6 +1115,12 @@
           var badgesContainer = document.getElementById('fileBadges');
           var existingText = sourceData.value.trim();
           if (existingText) allTexts.push(existingText);
+
+          // 记录第一个导入文件的名称作为导出默认名
+          if (results.length > 0) {
+            var firstName = results[0].file.name;
+            importedFileName = firstName.replace(/\.[^.]+$/, ''); // 去掉扩展名
+          }
 
           results.forEach(function(r) {
             allTexts.push(r.text);
